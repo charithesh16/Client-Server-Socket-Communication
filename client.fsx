@@ -2,6 +2,8 @@ open System
 open System.Net
 open System.Net.Sockets
 open System.IO;
+open System.Threading
+open System.Threading.Tasks
 
 let sendCommandsToServer (stream: NetworkStream,buffer:byte array) = 
     printf "Sending command: " 
@@ -19,12 +21,17 @@ let mutable isClientUp = true
 let buffer = Array.zeroCreate 256
 let stream = client.GetStream()
 let data = stream.Read(buffer,0,256)
+
+// Get Hello message from the server.
 let message = System.Text.Encoding.ASCII.GetString(buffer)
 printf "%s" message
+
+// Continue processing when the client is up
 while isClientUp do
+    // Send the command to the sever from the console and return the response from the server
     let response = sendCommandsToServer(stream,buffer)
-    if response.Equals("bye") then
+    if response.Contains("-5") then
         isClientUp <- false
     printfn "Server response: %s" response
-
+printfn "exit"
 client.Close()
