@@ -48,7 +48,29 @@ let terminateAllClients () =
         sendResponse (client,"-5")
         
         // client.Close()
-    
+
+let validateInput(command: string,values:string array) = 
+    let mutable hasError = false
+    let mutable errorCode = ""
+    // printfn "command %s" command
+    if not (List.contains command ["add"; "subtract"; "multiply"; "bye";]) then
+        hasError <- true
+        errorCode <- "-1"
+    elif values.Length < 2 then
+        hasError <- true
+        errorCode <- "-2"  
+    elif values.Length > 4 then
+        hasError <-true
+        errorCode <- "-3"
+    else
+        for value in values do
+            let isInt, _ = Int32.TryParse value
+            // printfn "numbercheck %s %b" value isInt
+            if not (isInt) then
+                hasError <-true
+                errorCode <-"-4"
+    [hasError.ToString(); errorCode;]
+
 let serveClient (client: TcpClient) = async { 
     
     connectedClients.Add(client)
@@ -79,22 +101,28 @@ let serveClient (client: TcpClient) = async {
         // Else perform the command ( add,subtract,multiply and bye)
         else 
             let values = arguments[1..]
-            // TODO validate input only then process
-            let cleanedValues = Array.map int values
-            let mutable response = ""
-            if command.Equals("add") then
-                response <- performAdd(cleanedValues)
-            elif command.Equals("subtract") then 
-                response <- performSubtract(cleanedValues)
-            elif command.Equals("multiply") then
-                response <- performMultiplication (cleanedValues)
-            elif command.Contains("bye") then
-                connectedClients.Remove(client)|>ignore
-                response <- "-5"
-                connectionOpen <- false
+            let isInputCorrect = validateInput (command,values)
+            
+            // printfn "%s %s" isInputCorrect[0] isInputCorrect[1]
+            if (not(command.Contains "bye")) && isInputCorrect[0].Contains("True") then
+                sendResponse (client,isInputCorrect[1])
+            else 
+                // TODO validate input only then process
+                let cleanedValues = Array.map int values
+                let mutable response: string = ""    
+                if command.Equals("add") then
+                    response <- performAdd(cleanedValues)
+                elif command.Equals("subtract") then 
+                    response <- performSubtract(cleanedValues)
+                elif command.Equals("multiply") then
+                    response <- performMultiplication (cleanedValues)
+                elif command.Contains("bye") then
+                    connectedClients.Remove(client)|>ignore
+                    response <- "-5"
+                    connectionOpen <- false
 
-            // Send response to the client.
-            sendResponse (client,response)
+                // Send response to the client.
+                sendResponse (client,response)
     // client.Close()
 }
 
