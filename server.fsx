@@ -31,10 +31,8 @@ let performMultiplication(arguments: int array) =
     Array.reduce (*) arguments
     |>string
 
-let connectedClients = new List<TcpClient>()
-
-let sendResponse (client:TcpClient,response:string) = 
-    let serverResponse = "Responding to client "+(client.Client.Handle.ToInt32()|>string) + " with result: "+response
+let sendResponse (client:TcpClient,response:string,clientID:int) = 
+    let serverResponse = "Responding to client "+(clientID.ToString()) + " with result: "+response
     printfn "%s" serverResponse
     client.GetStream().Write(System.Text.Encoding.ASCII.GetBytes(response))
 
@@ -42,12 +40,6 @@ let readRequest (client:TcpClient) =
     let buffer = Array.zeroCreate 256
     let read = client.GetStream().Read(buffer,0,256);
     System.Text.Encoding.ASCII.GetString(buffer)
-
-let terminateAllClients () = 
-    for client in connectedClients do
-        sendResponse (client,"-5")
-        
-        // client.Close()
 
 let validateInput(command: string,values:string array) = 
     let mutable hasError = false
@@ -71,9 +63,8 @@ let validateInput(command: string,values:string array) =
                 errorCode <-"-4"
     [hasError.ToString(); errorCode;]
 
-let serveClient (client: TcpClient) = async { 
+let serveClient (client: TcpClient,clientID:int) = async { 
     
-    connectedClients.Add(client)
 
     // Get client stream to read and write
     let stream = client.GetStream()
@@ -93,10 +84,10 @@ let serveClient (client: TcpClient) = async {
 
         // If the command is terminate then send the code -5 and close the connection
         if command.Contains("terminate") then
-            sendResponse (client,"-5")
-            // terminateAllClients ()
+            sendResponse (client,"-5",clientID)
             connectionOpen <- false
             isServerUp <-false
+            Environment.Exit 0
 
         // Else perform the command ( add,subtract,multiply and bye)
         else 
@@ -105,7 +96,7 @@ let serveClient (client: TcpClient) = async {
             
             // printfn "%s %s" isInputCorrect[0] isInputCorrect[1]
             if (not(command.Contains "bye")) && isInputCorrect[0].Contains("True") then
-                sendResponse (client,isInputCorrect[1])
+                sendResponse (client,isInputCorrect[1],clientID)
             else 
                 // TODO validate input only then process
                 let cleanedValues = Array.map int values
@@ -117,21 +108,21 @@ let serveClient (client: TcpClient) = async {
                 elif command.Equals("multiply") then
                     response <- performMultiplication (cleanedValues)
                 elif command.Contains("bye") then
-                    connectedClients.Remove(client)|>ignore
                     response <- "-5"
                     connectionOpen <- false
 
                 // Send response to the client.
-                sendResponse (client,response)
+                sendResponse (client,response,clientID)
     // client.Close()
 }
 
 
+let mutable clientID = 0
 // Accept clients 
 while isServerUp do
     let client = listener.AcceptTcpClient()
-
+    clientID <- clientID + 1;
     // After accepting client aynchronously start processing client
-    Async.Start(serveClient (client))
+    Async.Start(serveClient (client,clientID))
 
 listener.Stop()
